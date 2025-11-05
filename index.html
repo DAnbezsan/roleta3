@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Roleta Premiada</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body{font-family:Arial;background:#f7f7f7;margin:0;padding:0;display:flex;flex-direction:column;align-items:center}
+  h2{margin-top:20px}
+  .wheel-container{position:relative;display:inline-block;margin-top:20px}
+  canvas{background:#fff;border-radius:50%;box-shadow:0 0 10px rgba(0,0,0,0.2)}
+  .arrow{position:absolute;top:-25px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:15px solid transparent;border-right:15px solid transparent;border-bottom:25px solid red}
+  #spinBtn{margin:20px;padding:12px 24px;font-size:18px;border:none;border-radius:8px;background:#4CAF50;color:#fff;cursor:pointer}
+  #spinBtn:disabled{background:#888;cursor:not-allowed}
+  .modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);align-items:center;justify-content:center}
+  .modal-content{background:#fff;padding:20px;border-radius:10px;text-align:center;width:85%;max-width:320px}
+  input{padding:10px;width:90%;margin-bottom:10px;border:1px solid #ccc;border-radius:8px;font-size:16px}
+  button{padding:10px 18px;border:none;border-radius:8px;background:#007bff;color:#fff;font-size:16px;cursor:pointer;margin-top:4px}
+  .close-btn{margin-top:12px;background:#aaa}
+  .info-section{max-width:600px;text-align:left;margin:20px;padding:15px;background:#fff;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1)}
+  .info-section h3{margin-bottom:8px}
+  .info-section p{margin:4px 0}
+</style>
+</head>
+<body>
+<h2>Roleta Premiada</h2>
+
+<div class="wheel-container">
+  <canvas id="wheel" width="320" height="320"></canvas>
+  <div class="arrow"></div>
+</div>
+
+<button id="spinBtn">Girar</button>
+
+<!-- Modal telefone -->
+<div id="phoneModal" class="modal">
+  <div class="modal-content">
+    <h3>Digite seu telefone</h3>
+    <input id="phoneInput" placeholder="DDD + número" maxlength="13" />
+    <button id="savePhoneBtn">Salvar</button>
+  </div>
+</div>
+
+<!-- Modal resultado -->
+<div id="resultModal" class="modal">
+  <div class="modal-content result-card">
+    <img src="data:image/png;base64,LOGO_BASE64_AQUI" alt="Logo" style="width:80px;height:80px;border-radius:50%;margin-bottom:8px;object-fit:cover;"/>
+    <h2 style="margin:6px 0;font-size:20px;color:#000">Dannilo Sobrancelhas</h2>
+    <p id="resultTitle" style="font-size:18px;font-weight:bold;margin:6px 0;color:#444"></p>
+    <p style="font-size:14px;color:#555">Parabéns, você foi contemplado com um prêmio maravilhoso das mãos do melhor ❤</p>
+    <p style="margin-top:6px;font-size:12px;color:#666">✅ Apresente este cupom na recepção</p>
+    <p style="font-size:12px;color:#666">✅ Válido até: <strong>10 de janeiro</strong></p>
+    <div id="qrcode" style="margin:10px auto;width:90px;height:90px;background:#eee;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#666">QR</div>
+    <button class="close-btn" id="closeRes" style="margin-top:10px;background:#000;color:#fff">Fechar</button>
+  </div>
+</div>
+
+<!-- Seção de informações -->
+<section class="info-section">
+  <h3>Como participar:</h3>
+  <p>1. Insira seu telefone no campo acima.</p>
+  <p>2. Clique em "Girar" para ver seu prêmio.</p>
+  <p>3. Mostre o cupom gerado na recepção.</p>
+  
+  <h3>Regras:</h3>
+  <p>- Cada telefone pode girar apenas uma vez.</p>
+  <p>- Promoção válida até <strong>10 de janeiro</strong>.</p>
+  <p>- Prêmios sujeitos à disponibilidade.</p>
+  
+  <h3>Contato:</h3>
+  <p>WhatsApp: +55 77 99865-2620</p>
+</section>
+
+<script>
+const prizes=[
+ {label:'Shadow line 100%',color:'#FFD700',weight:1}, 
+ {label:'Fio a fio 100%',color:'#000000',weight:2},  
+ {label:'Shadow line 50%',color:'#FFD700',weight:10},
+ {label:'Fio a fio 50%',color:'#000000',weight:10},
+ {label:'Design 100%',color:'#FFD700',weight:5},
+ {label:'Design 50%',color:'#000000',weight:20}
+];
+const expanded=[];
+prizes.forEach((p,i)=>{for(let k=0;k<p.weight;k++)expanded.push(i)});
+
+const canvas=document.getElementById('wheel'),ctx=canvas.getContext('2d');
+const cx=canvas.width/2,cy=canvas.height/2,r=Math.min(cx,cy)-8;
+const textColors = prizes.map(p => p.color === '#FFD700' ? '#000000' : '#FFD700');
+
+function drawWheel(rot=0){
+    ctx.clearRect(0,0,320,320);
+    const c=prizes.length,a=2*Math.PI/c;
+    ctx.save();
+    ctx.translate(cx,cy);
+    ctx.rotate(rot);
+    for(let i=0;i<c;i++){
+        const s=i*a,e=s+a;
+        ctx.beginPath();
+        ctx.moveTo(0,0);
+        ctx.arc(0,0,r,s,e);
+        ctx.fillStyle=prizes[i].color;
+        ctx.fill();
+        ctx.stroke();
+        ctx.save();
+        ctx.translate((r/1.6)*Math.cos(s+a/2),(r/1.6)*Math.sin(s+a/2));
+        ctx.rotate(s+a/2+Math.PI/2);
+        ctx.font="bold 14px sans-serif";
+        ctx.textAlign="center";
+        ctx.fillStyle=textColors[i];
+        ctx.fillText(prizes[i].label,0,0);
+        ctx.restore();
+    }
+    ctx.restore();
+}
+drawWheel();
+
+let spinning=false,currentRotation=0;
+const spinBtn=document.getElementById('spinBtn');
+const modal=document.getElementById('resultModal'),resultTitle=document.getElementById('resultTitle'),closeRes=document.getElementById('closeRes');
+
+function pick(){return expanded[Math.floor(Math.random()*expanded.length)]}
+function ease(t){return 1-Math.pow(1-t,3)}
+function spin(){
+    if(spinning)return;
+    spinning=true;
+    spinBtn.disabled=true;
+    const idx=pick();
+    const c=prizes.length,d=360/c;
+    const offset=Math.random()*(d-6)-(d/2-3);
+    const target=360-(idx*d+d/2)+offset;
+    const spins=Math.floor(Math.random()*3)+4;
+    const dur=4200+Math.random()*2600;
+    const start=performance.now();
+    const startDeg=currentRotation*180/Math.PI;
+    const total=spins*360+target;
+    function frame(now){
+        const t=Math.min(1,(now-start)/dur);
+        const cur=startDeg+total*ease(t);
+        const rad=cur*Math.PI/180;
+        currentRotation=rad%(2*Math.PI);
+        drawWheel(currentRotation);
+        if(t<1)requestAnimationFrame(frame);
+        else{
+            spinning=false;
+            spinBtn.disabled=false;
+            showResult(idx);
+        }
+    }
+    requestAnimationFrame(frame);
+}
+
+function showResult(i){
+    const info=prizes[i];
+    resultTitle.textContent=info.label;
+    modal.style.display='flex';
+    localStorage.setItem('usedPhone',localStorage.getItem('wheelPhone')||"");
+    const owner="5577998652620"; 
+    const phone=localStorage.getItem('wheelPhone')||"Não informado";
+    const prize=info.label;
+    const date=new Date().toLocaleString();
+    const msg=`🎯 Resultado da Roleta\n\n📱 Cliente: ${phone}\n🎁 Prêmio: ${prize}\n🕒 Data: ${date}`;
+    setTimeout(()=>{window.open(`https://wa.me/${owner}?text=${encodeURIComponent(msg)}`,"_blank")},400);
+}
+
+closeRes.addEventListener('click',()=>modal.style.display='none');
+
+function checkPhone(){
+    const p=localStorage.getItem('wheelPhone');
+    const used=localStorage.getItem('usedPhone');
+    if(!p){phoneModal.style.display='flex';return false}
+    if(used===p){alert('Este telefone já girou.');return false}
+    return true
+}
+
+spinBtn.addEventListener('click',()=>{if(!checkPhone()) return; spin()});
+
+const phoneModal=document.getElementById('phoneModal');
+const phoneInput=document.getElementById('phoneInput');
+document.getElementById('savePhoneBtn').addEventListener('click',()=>{
+    const v=phoneInput.value.trim();
+    if(!/^\d{10,13}$/.test(v)){alert('Digite um telefone válido com DDD.');return}
+    localStorage.setItem('wheelPhone',v);
+    phoneModal.style.display='none';
+    alert('Telefone salvo!')
+});
+</script>
+</body>
+</html>
