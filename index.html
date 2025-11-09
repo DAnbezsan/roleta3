@@ -1,188 +1,639 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<title>Roleta Premiada</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
-  body{font-family:Arial;background:#f7f7f7;margin:0;padding:0;display:flex;flex-direction:column;align-items:center}
-  h2{margin-top:20px}
-  .wheel-container{position:relative;display:inline-block;margin-top:20px}
-  canvas{background:#fff;border-radius:50%;box-shadow:0 0 10px rgba(0,0,0,0.2)}
-  .arrow{position:absolute;top:-25px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:15px solid transparent;border-right:15px solid transparent;border-bottom:25px solid red}
-  #spinBtn{margin:20px;padding:12px 24px;font-size:18px;border:none;border-radius:8px;background:#4CAF50;color:#fff;cursor:pointer}
-  #spinBtn:disabled{background:#888;cursor:not-allowed}
-  .modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);align-items:center;justify-content:center}
-  .modal-content{background:#fff;padding:20px;border-radius:10px;text-align:center;width:85%;max-width:320px}
-  input{padding:10px;width:90%;margin-bottom:10px;border:1px solid #ccc;border-radius:8px;font-size:16px}
-  button{padding:10px 18px;border:none;border-radius:8px;background:#007bff;color:#fff;font-size:16px;cursor:pointer;margin-top:4px}
-  .close-btn{margin-top:12px;background:#aaa}
-  .info-section{max-width:600px;text-align:left;margin:20px;padding:15px;background:#fff;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1)}
-  .info-section h3{margin-bottom:8px}
-  .info-section p{margin:4px 0}
-</style>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎰</text></svg>">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Roleta Premiada Interativa</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React Libraries -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <!-- Babel Standalone for JSX/TSX compilation in the browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+      /* Estilos Globais e Animações */
+      body {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background-color: #000;
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+          'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+          sans-serif;
+      }
+      
+      @keyframes spin-lights { 
+        from{ transform: rotate(0deg); } 
+        to{ transform: rotate(360deg); } 
+      }
+      .casino-lights::before, .casino-lights::after {
+        content: ""; 
+        position: absolute; 
+        inset: -4px; 
+        border-radius: 50%;
+        background: conic-gradient(from 0deg, rgba(255,215,0,0.95) 0 12deg, transparent 12deg 36deg);
+        mask: radial-gradient(closest-side, transparent 0 95%, black 96%);
+        animation: spin-lights 5s linear infinite;
+        filter: blur(2px);
+      }
+      .casino-lights::after {
+        animation-duration: 8s;
+        opacity: 0.7;
+        filter: blur(4px) saturate(1.2);
+      }
+      
+      @keyframes fade-in-down {
+        0% { opacity: 0; transform: translateY(-20px); }
+        100% { opacity: 1; transform: translateY(0); }
+      }
+      .animate-fade-in-down { animation: fade-in-down 0.5s ease-out forwards; }
+      
+      @keyframes fade-in-scale {
+        0% { opacity: 0; transform: scale(0.8); }
+        100% { opacity: 1; transform: scale(1); }
+      }
+      .animate-fade-in-scale {
+        animation: fade-in-scale 0.3s ease-out forwards;
+      }
+    </style>
 </head>
 <body>
-<h2>Roleta Premiada</h2>
+    <noscript>Você precisa habilitar o JavaScript para rodar esta aplicação.</noscript>
+    <div id="root"></div>
 
-<div class="wheel-container">
-  <canvas id="wheel" width="320" height="320"></canvas>
-  <div class="arrow"></div>
-</div>
+    <script>
+      // ==========================================================
+      // ADICIONE AQUI SEU ID DO BIN E A CHAVE SECRETA DO JSONBIN.IO
+      // WARNING: Em produção, a chave secreta NÃO deve ser exposta diretamente no frontend!
+      // Considere usar um proxy de backend para lidar com chaves de API com segurança.
+      // ==========================================================
+      window.JSONBIN_BIN_ID = "69100d6043b1c97be9a1c6b9"; // SUBSTITUA PELO SEU BIN ID
+      window.JSONBIN_SECRET_KEY = "$2a$10$IbtalLrG92ZhBhwraBY77eDcAIupyqqGOl1L/7a8IJBnUOmTGNogW"; // SUBSTITUA PELA SUA CHAVE SECRETA (Master Key)
+    </script>
 
-<button id="spinBtn">Girar</button>
+    <script type="text/babel">
+      const { useState, useCallback, useEffect, useRef } = React;
 
-<!-- Modal telefone -->
-<div id="phoneModal" class="modal">
-  <div class="modal-content">
-    <h3>Digite seu telefone</h3>
-    <input id="phoneInput" placeholder="DDD + número" maxlength="13" />
-    <button id="savePhoneBtn">Salvar</button>
-  </div>
-</div>
+      // --- START OF TYPES ---
+      // Babel Standalone doesn't fully support TS type imports across files
+      // so these are redefined or simplified to work within a single script tag.
+      // In a multi-file setup with a build step, you would import these from types.ts
+      interface Prize {
+        id: number;
+        name: string;
+        emoji: string;
+      }
 
-<!-- Modal resultado -->
-<div id="resultModal" class="modal">
-  <div class="modal-content result-card">
-    <img src="data:image/png;base64,LOGO_BASE64_AQUI" alt="Logo" style="width:80px;height:80px;border-radius:50%;margin-bottom:8px;object-fit:cover;"/>
-    <h2 style="margin:6px 0;font-size:20px;color:#000">Dannilo Sobrancelhas</h2>
-    <p id="resultTitle" style="font-size:18px;font-weight:bold;margin:6px 0;color:#444"></p>
-    <p style="font-size:14px;color:#555">Parabéns, você foi contemplado com um prêmio maravilhoso das mãos do melhor ❤</p>
-    <p style="margin-top:6px;font-size:12px;color:#666">✅ Apresente este cupom na recepção</p>
-    <p style="font-size:12px;color:#666">✅ Válido até: <strong>10 de janeiro</strong></p>
-    <div id="qrcode" style="margin:10px auto;width:90px;height:90px;background:#eee;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#666">QR</div>
-    <button class="close-btn" id="closeRes" style="margin-top:10px;background:#000;color:#fff">Fechar</button>
-  </div>
-</div>
+      interface Winner {
+        name: string;
+        phone: string;
+        prizeName: string;
+      }
 
-<!-- Seção de informações -->
-<section class="info-section">
-  <h3>Como participar:</h3>
-  <p>1. Insira seu telefone no campo acima.</p>
-  <p>2. Clique em "Girar" para ver seu prêmio.</p>
-  <p>3. Mostre o cupom gerado na recepção.</p>
-  
-  <h3>Regras:</h3>
-  <p>- Cada telefone pode girar apenas uma vez.</p>
-  <p>- Promoção válida até <strong>10 de janeiro</strong>.</p>
-  <p>- Prêmios sujeitos à disponibilidade.</p>
-  
-  <h3>Contato:</h3>
-  <p>WhatsApp: +55 77 99865-2620</p>
-</section>
+      interface UserInfo {
+        name: string;
+        phone: string;
+      }
+      // --- END OF TYPES ---
 
-<script>
-const prizes=[
- {label:'Shadow line 100%',color:'#FFD700',weight:1}, 
- {label:'Fio a fio 100%',color:'#000000',weight:2},  
- {label:'Shadow line 50%',color:'#FFD700',weight:10},
- {label:'Fio a fio 50%',color:'#000000',weight:10},
- {label:'Design 100%',color:'#FFD700',weight:5},
- {label:'Design 50%',color:'#000000',weight:20}
-];
-const expanded=[];
-prizes.forEach((p,i)=>{for(let k=0;k<p.weight;k++)expanded.push(i)});
+      // --- START OF CONSTANTS ---
+      const PRIZES = [
+        { id: 1, name: 'DESIGN 50%', emoji: '🎉' },
+        { id: 2, name: 'FIO A FIO 50%', emoji: '✨' },
+        { id: 3, name: 'SHADOW L. 50%', emoji: '💖' },
+        { id: 4, name: 'DESIGN 100%', emoji: '🎁' },
+        { id: 5, name: 'FIO A FIO 100%', emoji: '💎' },
+        { id: 6, name: 'SHADOWL 100%', emoji: '🏆' },
+      ];
 
-const canvas=document.getElementById('wheel'),ctx=canvas.getContext('2d');
-const cx=canvas.width/2,cy=canvas.height/2,r=Math.min(cx,cy)-8;
-const textColors = prizes.map(p => p.color === '#FFD700' ? '#000000' : '#FFD700');
+      const PRIZES_SEQUENCE = [
+        'DESIGN 50%', 'DESIGN 50%', 'DESIGN 50%', 'DESIGN 50%', 'DESIGN 50%',
+        'FIO A FIO 50%', 'FIO A FIO 50%', 'FIO A FIO 50%',
+        'DESIGN 50%', 'DESIGN 50%', 'DESIGN 50%', 'DESIGN 50%', 'DESIGN 50%',
+        'SHADOW L. 50%', 'SHADOW L. 50%',
+        'DESIGN 50%', 'DESIGN 50%', 'DESIGN 50%', 'DESIGN 50%', 'DESIGN 50%',
+        'FIO A FIO 50%', 'FIO A FIO 50%', 'FIO A FIO 50%',
+        'DESIGN 50%', 'DESIGN 50%', 'DESIGN 50%',
+        'FIO A FIO 50%', 'FIO A FIO 50%',
+        'SHADOWL 100%',
+        'DESIGN 100%', 'DESIGN 100%',
+        'DESIGN 50%', 'DESIGN 50%',
+        'SHADOW L. 50%', 'SHADOW L. 50%',
+        'FIO A FIO 100%',
+        'FIO A FIO 50%', 'FIO A FIO 50%',
+        'DESIGN 100%', 'DESIGN 100%', 'DESIGN 100%',
+        'SHADOW L. 50%',
+        'DESIGN 100%', 'DESIGN 100%',
+        'FIO A FIO 100%',
+        'SHADOWL 100%',
+        'FIO A FIO 100%'
+      ];
 
-function drawWheel(rot=0){
-    ctx.clearRect(0,0,320,320);
-    const c=prizes.length,a=2*Math.PI/c;
-    ctx.save();
-    ctx.translate(cx,cy);
-    ctx.rotate(rot);
-    for(let i=0;i<c;i++){
-        const s=i*a,e=s+a;
-        ctx.beginPath();
-        ctx.moveTo(0,0);
-        ctx.arc(0,0,r,s,e);
-        ctx.fillStyle=prizes[i].color;
-        ctx.fill();
-        ctx.stroke();
-        ctx.save();
-        ctx.translate((r/1.6)*Math.cos(s+a/2),(r/1.6)*Math.sin(s+a/2));
-        ctx.rotate(s+a/2+Math.PI/2);
-        ctx.font="bold 14px sans-serif";
-        ctx.textAlign="center";
-        ctx.fillStyle=textColors[i];
-        ctx.fillText(prizes[i].label,0,0);
-        ctx.restore();
-    }
-    ctx.restore();
-}
-drawWheel();
+      const SPIN_DURATION_MS = 4200;
+      const OWNER_WHATSAPP = "5577981633924";
+      const ADMIN_PHONE = "77998652620";
+      const ADMIN_PASSWORD = "adm0832";
 
-let spinning=false,currentRotation=0;
-const spinBtn=document.getElementById('spinBtn');
-const modal=document.getElementById('resultModal'),resultTitle=document.getElementById('resultTitle'),closeRes=document.getElementById('closeRes');
+      // JsonBin configuration - these read from window globals if set, otherwise use defaults
+      const JSONBIN_BIN_ID = window.JSONBIN_BIN_ID || "YOUR_DEFAULT_BIN_ID";
+      const JSONBIN_SECRET_KEY = window.JSONBIN_SECRET_KEY || "YOUR_DEFAULT_SECRET_KEY";
+      // --- END OF CONSTANTS ---
 
-function pick(){return expanded[Math.floor(Math.random()*expanded.length)]}
-function ease(t){return 1-Math.pow(1-t,3)}
-function spin(){
-    if(spinning)return;
-    spinning=true;
-    spinBtn.disabled=true;
-    const idx=pick();
-    const c=prizes.length,d=360/c;
-    const offset=Math.random()*(d-6)-(d/2-3);
-    const target=360-(idx*d+d/2)+offset;
-    const spins=Math.floor(Math.random()*3)+4;
-    const dur=4200+Math.random()*2600;
-    const start=performance.now();
-    const startDeg=currentRotation*180/Math.PI;
-    const total=spins*360+target;
-    function frame(now){
-        const t=Math.min(1,(now-start)/dur);
-        const cur=startDeg+total*ease(t);
-        const rad=cur*Math.PI/180;
-        currentRotation=rad%(2*Math.PI);
-        drawWheel(currentRotation);
-        if(t<1)requestAnimationFrame(frame);
-        else{
-            spinning=false;
-            spinBtn.disabled=false;
-            showResult(idx);
+      // --- START OF SPINNER MARKER COMPONENT ---
+      const SpinnerMarker = () => {
+        return (
+          <div className="absolute -top-3 md:-top-4 left-1/2 -translate-x-1/2 z-10" style={{ filter: 'drop-shadow(0 6px 8px rgba(0,0,0,0.5))' }}>
+            <svg width="40" height="56" viewBox="0 0 40 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="marker-gold-grad" x1="50%" y1="0%" x2="50%" y2="100%">
+                  <stop offset="0%" stopColor="#FFF8E6" />
+                  <stop offset="50%" stopColor="#FFD95A" />
+                  <stop offset="100%" stopColor="#D4AF37" />
+                </linearGradient>
+              </defs>
+              <path d="M20 56L40 20L20 0L0 20L20 56Z" fill="#111" />
+              <path d="M20 52L36 20L20 4L4 20L20 52Z" fill="url(#marker-gold-grad)" />
+            </svg>
+          </div>
+        );
+      };
+      // --- END OF SPINNER MARKER COMPONENT ---
+
+      // --- START OF SPINNER WHEEL COMPONENT ---
+      const SpinnerWheel = ({ prizes, rotation, spinDuration }) => {
+        const numPrizes = prizes.length;
+        const anglePerSegment = 360 / numPrizes;
+        const radius = 160;
+        const viewBoxSize = radius * 2 + 40;
+
+        const getCoordinatesForAngle = (angle, r = radius) => {
+          const rad = (angle * Math.PI) / 180;
+          const x = r * Math.cos(rad);
+          const y = r * Math.sin(rad);
+          return [x, y];
+        };
+
+        return (
+          <div
+            className="relative w-[360px] h-[360px] md:w-[450px] md:h-[450px] transition-transform duration-[cubic-bezier(0.25,0.1,0.25,1)]"
+            style={{
+              transform: `rotate(${rotation}deg)`,
+              transitionDuration: `${spinDuration}ms`,
+              filter: 'drop-shadow(0px 10px 15px rgba(0,0,0,0.5))'
+            }}
+          >
+            <svg
+              viewBox={`-${viewBoxSize / 2} -${viewBoxSize / 2} ${viewBoxSize} ${viewBoxSize}`}
+              className="w-full h-full"
+              style={{ transform: 'rotate(-90deg)' }}
+            >
+              <defs>
+                <radialGradient id="gold-grad" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+                  <stop offset="0%" stopColor="#FFF8E6"/>
+                  <stop offset="25%" stopColor="#FFEFB3"/>
+                  <stop offset="45%" stopColor="#FFD95A"/>
+                  <stop offset="70%" stopColor="#D4AF37"/>
+                  <stop offset="100%" stopColor="#7a5e00"/>
+                </radialGradient>
+                <linearGradient id="black-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#3b3b3b" />
+                  <stop offset="50%" stopColor="#1a1a1a" />
+                  <stop offset="100%" stopColor="#000000" />
+                </linearGradient>
+                <radialGradient id="hub-grad" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+                  <stop offset="0%" stopColor="#fff"/>
+                  <stop offset="60%" stopColor="rgba(255,255,255,0.2)"/>
+                  <stop offset="100%" stopColor="rgba(255,255,255,0)"/>
+                </radialGradient>
+              </defs>
+              <circle cx="0" cy="0" r={radius + 15} fill="#111" />
+              <circle cx="0" cy="0" r={radius + 10} fill="url(#gold-grad)" stroke="#fff" strokeWidth="0.5" strokeOpacity="0.3" />
+              <circle cx="0" cy="0" r={radius + 8} fill="transparent" stroke="#000" strokeWidth="1" strokeOpacity="0.5" />
+              <g>
+                {prizes.map((prize, index) => {
+                  const startAngle = index * anglePerSegment;
+                  const endAngle = (index + 1) * anglePerSegment;
+                  const [startX, startY] = getCoordinatesForAngle(startAngle);
+                  const [endX, endY] = getCoordinatesForAngle(endAngle);
+                  const pathData = `M 0 0 L ${startX} ${startY} A ${radius} ${radius} 0 0 1 ${endX} ${endY} Z`;
+                  const textArcRadius = radius * 0.75;
+                  const [textArcStartX, textArcStartY] = getCoordinatesForAngle(startAngle + 2, textArcRadius);
+                  const [textArcEndX, textArcEndY] = getCoordinatesForAngle(endAngle - 2, textArcRadius);
+                  const textPathId = `text-path-${prize.id}`;
+                  const textPathData = `M ${textArcStartX} ${textArcStartY} A ${textArcRadius} ${textArcRadius} 0 0 1 ${textArcEndX} ${textArcEndY}`;
+                  const isGold = index % 2 === 0;
+                  const textColor = isGold ? '#1a1a1a' : '#FFD700';
+                  return (
+                    <g key={prize.id}>
+                      <path d={pathData} fill={isGold ? 'url(#gold-grad)' : 'url(#black-grad)'} stroke="#0b0b0b" strokeWidth="1.6" />
+                      <defs><path id={textPathId} d={textPathData} /></defs>
+                      <text dy={-4} fill={textColor} fontSize="13" fontWeight="bold" fontFamily="Arial, Helvetica, sans-serif" style={{ userSelect: 'none', textShadow: isGold ? 'none' : '0 0 5px rgba(255,215,0,0.5)' }}>
+                        <textPath href={`#${textPathId}`} startOffset="50%" textAnchor="middle" dominantBaseline="middle">{prize.name}</textPath>
+                      </text>
+                    </g>
+                  );
+                })}
+              </g>
+              <circle cx="0" cy="0" r={radius * 0.18} fill="#111" />
+              <circle cx="0" cy="0" r={radius * 0.15} fill="url(#gold-grad)" />
+              <circle cx="0" cy="0" r={radius * 0.12} fill="url(#hub-grad)" />
+              <circle cx="0" cy="0" r={radius * 0.05} fill="#b80000" stroke="gold" strokeWidth="1" />
+            </svg>
+          </div>
+        );
+      };
+      // --- END OF SPINNER WHEEL COMPONENT ---
+
+      // --- START OF PRIZE MODAL COMPONENT ---
+      const PrizeModal = ({ isOpen, prize, onClose, userName, userPhone }) => {
+        if (!isOpen || !prize) return null;
+
+        const handleWhatsAppShare = () => {
+          const message = `🎉 Olá! Meu nome é ${userName} e eu ganhei na Roleta Premiada!\n🏆 Prêmio: ${prize.name}\n📱 Telefone: ${userPhone}`;
+          const whatsappUrl = `https://wa.me/${OWNER_WHATSAPP}?text=${encodeURIComponent(message)}`;
+          window.open(whatsappUrl, "_blank");
+        };
+
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" onClick={onClose} role="dialog" aria-modal="true">
+            <div className="relative bg-gradient-to-br from-gray-900 to-black rounded-2xl shadow-2xl p-8 text-center border-2 border-amber-500 animate-fade-in-scale w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+              <p className="text-2xl text-gray-400 mb-2">Parabéns, {userName}!</p>
+              <div className="text-8xl my-6 animate-bounce">{prize.emoji}</div>
+              <h2 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-500 to-amber-400 mb-6" style={{ textShadow: '0 0 12px rgba(255,215,0,0.25)' }}>
+                {prize.name}
+              </h2>
+              {userName && userPhone && OWNER_WHATSAPP && (
+                <button onClick={handleWhatsAppShare} className="w-full px-6 py-3 mb-4 text-lg font-semibold text-white bg-green-500 rounded-lg shadow-md hover:bg-green-600 focus:outline-none focus:ring-4 focus:ring-green-500 focus:ring-opacity-50 transition-colors duration-300 flex items-center justify-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.894 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.886-.001 2.267.651 4.383 1.88 6.195l.044.072-1.254 4.579 4.662-1.225.078.044z"></path></svg>
+                  Enviar via WhatsApp
+                </button>
+              )}
+              <button onClick={onClose} className="w-full px-6 py-3 text-lg font-semibold text-white bg-gray-700 rounded-lg shadow-md hover:bg-gray-600 focus:outline-none focus:ring-4 focus:ring-gray-500 focus:ring-opacity-50 transition-colors duration-300">
+                Fechar
+              </button>
+            </div>
+          </div>
+        );
+      };
+      // --- END OF PRIZE MODAL COMPONENT ---
+
+      // --- START OF APP COMPONENT ---
+      const InfoModal = ({ isOpen, onSave, onClose }) => {
+        const [name, setName] = useState('');
+        const [phone, setPhone] = useState('');
+        const [error, setError] = useState('');
+
+        if (!isOpen) return null;
+
+        const handleSave = () => {
+          const trimmedName = name.trim();
+          const rawPhone = phone.trim().replace(/\D/g, '');
+
+          if (!trimmedName) {
+            setError('Por favor, digite seu nome completo.');
+            return;
+          }
+          if (!/^\d{10,13}$/.test(rawPhone)) {
+            setError('Digite um telefone válido (somente dígitos, 10–13 caracteres)');
+            return;
+          }
+          setError('');
+          onSave({ name: trimmedName, phone: rawPhone });
+        };
+
+        const handleClose = () => {
+          setName('');
+          setPhone('');
+          setError('');
+          onClose();
+        };
+
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" onClick={handleClose} role="dialog" aria-modal="true">
+            <div className="relative bg-gradient-to-br from-gray-900 to-black rounded-2xl shadow-2xl p-8 text-center border-2 border-amber-500 animate-fade-in-scale w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-2xl font-bold text-white mb-4">Informe seus dados para girar</h3>
+              <input type="text" placeholder="Nome Completo" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-3 bg-gray-800 text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 mb-4 text-center" aria-label="Nome Completo"/>
+              <input type="tel" placeholder="DDD + Telefone (só dígitos)" maxLength={15} value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))} className="w-full px-4 py-3 bg-gray-800 text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 mb-2 text-center" aria-label="Número de telefone"/>
+              {error && <p className="text-red-400 text-sm mb-4" role="alert">{error}</p>}
+              <div className="flex justify-center gap-4 mt-4">
+                <button onClick={handleSave} className="px-6 py-2 text-lg font-semibold text-black bg-gradient-to-br from-amber-400 to-yellow-500 rounded-lg shadow-md hover:from-amber-500 hover:to-yellow-600 focus:outline-none focus:ring-4 focus:ring-yellow-400 transition-all duration-300">Salvar</button>
+                <button onClick={handleClose} className="px-6 py-2 text-lg font-semibold text-white bg-gray-700 rounded-lg shadow-md hover:bg-gray-600 focus:outline-none focus:ring-4 focus:ring-gray-500 transition-colors duration-300">Cancelar</button>
+              </div>
+              <p className="text-sm text-gray-400 mt-6">Após salvar, clique em <strong>GIRAR</strong> novamente.</p>
+            </div>
+          </div>
+        );
+      };
+      
+      const WinnersList = ({ winners }) => {
+          if (winners.length === 0) {
+              return <p className="text-gray-400 mt-2">Nenhum ganhador ainda.</p>;
+          }
+          return (
+              <div className="w-full max-w-md mt-4">
+                  <h3 className="text-xl text-amber-400 font-bold mb-2 text-center">Lista de Ganhadores</h3>
+                  <div className="bg-gray-900 bg-opacity-70 rounded-lg p-3 max-h-48 overflow-y-auto">
+                      <ul>
+                          {winners.map((winner, index) => (
+                              <li key={index} className="text-sm text-white border-b border-gray-700 last:border-b-0 py-2">
+                                  <span className="font-bold">{winner.name}</span> ({winner.phone}) - <span className="text-amber-300">{winner.prizeName}</span>
+                              </li>
+                          ))}
+                      </ul>
+                  </div>
+              </div>
+          );
+      };
+
+      // Helper to get item from local storage, with a warning for parsing errors
+      const getLocalStorageItem = (key, defaultValue) => {
+        try {
+          const item = window.localStorage.getItem(key);
+          return item ? JSON.parse(item) : defaultValue;
+        } catch (error) {
+          console.warn(`Erro ao ler localStorage “${key}”:`, error);
+          return defaultValue;
         }
-    }
-    requestAnimationFrame(frame);
-}
+      };
 
-function showResult(i){
-    const info=prizes[i];
-    resultTitle.textContent=info.label;
-    modal.style.display='flex';
-    localStorage.setItem('usedPhone',localStorage.getItem('wheelPhone')||"");
-    const owner="5577998652620"; 
-    const phone=localStorage.getItem('wheelPhone')||"Não informado";
-    const prize=info.label;
-    const date=new Date().toLocaleString();
-    const msg=`🎯 Resultado da Roleta\n\n📱 Cliente: ${phone}\n🎁 Prêmio: ${prize}\n🕒 Data: ${date}`;
-    setTimeout(()=>{window.open(`https://wa.me/${owner}?text=${encodeURIComponent(msg)}`,"_blank")},400);
-}
+      const App = () => {
+        const [isSpinning, setIsSpinning] = useState(false);
+        const [rotation, setRotation] = useState(0);
+        const [wonPrize, setWonPrize] = useState(null);
+        const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
 
-closeRes.addEventListener('click',()=>modal.style.display='none');
+        // User-specific data, can be stored locally for convenience
+        const [userName, setUserName] = useState(() => getLocalStorageItem('userName', null));
+        const [userPhone, setUserPhone] = useState(() => getLocalStorageItem('wheelPhone', null));
 
-function checkPhone(){
-    const p=localStorage.getItem('wheelPhone');
-    const used=localStorage.getItem('usedPhone');
-    if(!p){phoneModal.style.display='flex';return false}
-    if(used===p){alert('Este telefone já girou.');return false}
-    return true
-}
+        // Global state, to be synced with JsonBin
+        const [currentIndex, setCurrentIndex] = useState(null); // Null until loaded from JsonBin
+        const [usedPhones, setUsedPhones] = useState(null); // Null until loaded from JsonBin
+        const [winnersList, setWinnersList] = useState(null); // Null until loaded from JsonBin
 
-spinBtn.addEventListener('click',()=>{if(!checkPhone()) return; spin()});
+        const [notification, setNotification] = useState(null);
+        const [isSyncing, setIsSyncing] = useState(true); // Tracks initial load and subsequent saves
+        const [remoteError, setRemoteError] = useState(null);
 
-const phoneModal=document.getElementById('phoneModal');
-const phoneInput=document.getElementById('phoneInput');
-document.getElementById('savePhoneBtn').addEventListener('click',()=>{
-    const v=phoneInput.value.trim();
-    if(!/^\d{10,13}$/.test(v)){alert('Digite um telefone válido com DDD.');return}
-    localStorage.setItem('wheelPhone',v);
-    phoneModal.style.display='none';
-    alert('Telefone salvo!')
-});
-</script>
+        // Ref to track if initial remote fetch has been attempted
+        const hasFetchedRemoteRef = useRef(false);
+
+        const showNotification = (message) => {
+          setNotification(message);
+          setTimeout(() => setNotification(null), 3000);
+        };
+
+        const API_URL = `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`;
+
+        // Function to fetch data from JsonBin
+        const fetchRemoteState = useCallback(async () => {
+          setIsSyncing(true);
+          setRemoteError(null);
+          try {
+            const response = await fetch(`${API_URL}/latest`, {
+              headers: {
+                'X-Master-Key': JSONBIN_SECRET_KEY,
+              },
+            });
+
+            if (!response.ok) {
+              const errorText = await response.text(); // Capture detailed error message from response body
+              throw new Error(`Erro ao buscar dados remotos: ${response.status} - ${errorText}`);
+            }
+
+            const data = await response.json();
+            const latestData = data.record;
+
+            setCurrentIndex(latestData.currentIndex || 0);
+            setUsedPhones(latestData.usedPhones || []);
+            setWinnersList(latestData.winnersList || []);
+            showNotification('Dados sincronizados com sucesso!');
+          } catch (error) {
+            console.error('Erro JsonBin (leitura):', error);
+            setRemoteError('Não foi possível sincronizar com o servidor. Usando dados locais.');
+            showNotification('Modo offline: Falha ao carregar dados do servidor.');
+            // Fallback to local storage if remote fails
+            setCurrentIndex(getLocalStorageItem('currentIndex', 0));
+            setUsedPhones(getLocalStorageItem('usedPhones', []));
+            setWinnersList(getLocalStorageItem('winnersList', []));
+          } finally {
+            setIsSyncing(false);
+          }
+        }, [API_URL, JSONBIN_SECRET_KEY]);
+
+        // Function to save data to JsonBin
+        const saveRemoteState = useCallback(async (dataToSave) => {
+          setIsSyncing(true);
+          setRemoteError(null);
+          try {
+            const response = await fetch(API_URL, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Master-Key': JSONBIN_SECRET_KEY,
+              },
+              body: JSON.stringify(dataToSave),
+            });
+
+            if (!response.ok) {
+              const errorText = await response.text(); // Capture detailed error message from response body
+              throw new Error(`Erro ao salvar dados remotos: ${response.status} - ${errorText}`);
+            }
+            showNotification('Dados salvos no servidor.');
+          } catch (error) {
+            console.error('Erro JsonBin (escrita):', error);
+            setRemoteError('Não foi possível salvar dados no servidor. Dados salvos localmente.');
+            showNotification('Modo offline: Falha ao salvar dados no servidor.');
+          } finally {
+            setIsSyncing(false);
+          }
+        }, [API_URL, JSONBIN_SECRET_KEY]);
+
+
+        // Effect to load initial state (from JsonBin or localStorage)
+        useEffect(() => {
+          if (!hasFetchedRemoteRef.current) {
+            hasFetchedRemoteRef.current = true;
+            fetchRemoteState();
+          }
+        }, [fetchRemoteState]);
+
+        // Effect to save to localStorage and JsonBin whenever global state changes
+        useEffect(() => {
+          if (currentIndex !== null && usedPhones !== null && winnersList !== null) {
+            try {
+              window.localStorage.setItem('currentIndex', JSON.stringify(currentIndex));
+              window.localStorage.setItem('usedPhones', JSON.stringify(usedPhones));
+              window.localStorage.setItem('winnersList', JSON.stringify(winnersList));
+              if (userName) window.localStorage.setItem('userName', JSON.stringify(userName));
+              else window.localStorage.removeItem('userName');
+              if (userPhone) window.localStorage.setItem('wheelPhone', JSON.stringify(userPhone));
+              else window.localStorage.removeItem('wheelPhone');
+              
+              saveRemoteState({ currentIndex, usedPhones, winnersList });
+            } catch (error) {
+              console.error('Erro ao salvar no localStorage ou JsonBin', error);
+              setRemoteError('Erro ao salvar dados localmente ou remotamente.');
+              showNotification('Erro: Falha ao persistir dados.');
+            }
+          }
+        }, [currentIndex, usedPhones, userName, userPhone, winnersList, saveRemoteState]);
+
+        const handleReset = () => {
+          const password = prompt("Para resetar, digite a senha de administrador:");
+          if (password === ADMIN_PASSWORD) {
+            if (window.confirm('Tem certeza que deseja resetar a roleta? Todos os dados (giros, telefones, ganhadores) serão apagados.')) {
+              // Clear local storage
+              localStorage.removeItem('currentIndex');
+              localStorage.removeItem('usedPhones');
+              localStorage.removeItem('userName');
+              localStorage.removeItem('wheelPhone');
+              localStorage.removeItem('winnersList');
+
+              // Update state to reset values
+              setCurrentIndex(0);
+              setUsedPhones([]);
+              setWinnersList([]);
+              setUserName(null);
+              setUserPhone(null);
+
+              // Save empty state to JsonBin
+              saveRemoteState({ currentIndex: 0, usedPhones: [], winnersList: [] });
+
+              alert('Roleta resetada com sucesso! Os dados foram limpos localmente e no servidor.');
+              // No need to reload, state is already reset.
+            }
+          } else if (password !== null) { // User didn't click cancel
+            alert('Senha incorreta!');
+          }
+        };
+
+        const startSpin = useCallback(() => {
+          if (isSpinning || !userPhone || !userName || currentIndex === null || usedPhones === null || winnersList === null) return;
+          if (userPhone !== ADMIN_PHONE && usedPhones.includes(userPhone)) {
+            alert('Este número de telefone já participou da promoção.');
+            return;
+          }
+          setIsSpinning(true);
+          const targetPrizeName = PRIZES_SEQUENCE[currentIndex % PRIZES_SEQUENCE.length];
+          const winningPrize = PRIZES.find(p => p.name === targetPrizeName);
+          const winningPrizeIndex = PRIZES.findIndex(p => p.name === targetPrizeName);
+
+          if (!winningPrize || winningPrizeIndex < 0) {
+            console.error("Prêmio não encontrado:", targetPrizeName);
+            setIsSpinning(false);
+            return;
+          }
+          
+          const segmentAngle = 360 / PRIZES.length;
+          // Calculate the angle to land on the center of the winning segment
+          const winningAngle = 360 - (winningPrizeIndex * segmentAngle + segmentAngle / 2);
+          const randomRotations = 5 + Math.floor(Math.random() * 3); // Ensure multiple full rotations
+          const finalRotation = 360 * randomRotations + winningAngle;
+
+          setRotation(prev => prev + finalRotation);
+
+          setTimeout(() => {
+            setWonPrize(winningPrize);
+            setIsSpinning(false);
+            setCurrentIndex(prev => (prev !== null ? prev + 1 : 1)); // Ensure prev is not null
+            
+            if (userPhone === ADMIN_PHONE) {
+              setWinnersList(prev => [...(prev || []), {name: 'ADM TESTE', phone: userPhone, prizeName: winningPrize.name}]);
+            } else {
+                setUsedPhones(prev => [...(prev || []), userPhone]);
+                setWinnersList(prev => [...(prev || []), {name: userName, phone: userPhone, prizeName: winningPrize.name}]);
+            }
+          }, SPIN_DURATION_MS + 200);
+        }, [isSpinning, userName, userPhone, currentIndex, usedPhones, winnersList]);
+
+        const handleSpinClick = () => {
+          if (isSyncing || currentIndex === null || usedPhones === null || winnersList === null) {
+            showNotification('Aguarde a sincronização de dados...');
+            return;
+          }
+          if (isSpinning) return;
+          if (userPhone && userName) {
+            startSpin();
+          } else {
+            setIsInfoModalOpen(true);
+          }
+        };
+
+        const handleSaveInfo = ({ name, phone }) => {
+          setUserName(name);
+          setUserPhone(phone);
+          setIsInfoModalOpen(false);
+          showNotification('Dados salvos! Clique em "GIRAR" novamente.');
+        };
+
+        const isAppDataLoaded = currentIndex !== null && usedPhones !== null && winnersList !== null;
+        
+        return (
+          <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white p-4 overflow-hidden" style={{ background: 'radial-gradient(circle at center, #070707 0%, #000 100%)' }}>
+            {notification && (
+              <div className="fixed top-5 bg-amber-500 text-black py-2 px-4 rounded-lg shadow-lg z-[60] animate-fade-in-down font-semibold">
+                {notification}
+              </div>
+            )}
+            {remoteError && (
+              <div className="fixed top-20 bg-red-600 text-white py-2 px-4 rounded-lg shadow-lg z-[60] animate-fade-in-down font-semibold">
+                {remoteError}
+              </div>
+            )}
+            <header className="text-center mb-8">
+              <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-500 to-amber-400" style={{ textShadow: '0 0 12px rgba(255,215,0,0.25)' }}>
+                Roleta Premiada
+              </h1>
+              <p className="text-lg text-amber-100 opacity-80 mt-2">Gire a roleta para ganhar prêmios incríveis!</p>
+            </header>
+            <main className="relative flex flex-col items-center justify-center w-full max-w-lg mx-auto">
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-20px)] h-[calc(100%-20px)] md:w-[calc(100%-40px)] md:h-[calc(100%-40px)] pointer-events-none casino-lights" aria-hidden="true"></div>
+              <SpinnerMarker />
+              <SpinnerWheel prizes={PRIZES} rotation={rotation} spinDuration={SPIN_DURATION_MS} />
+            </main>
+            <footer className="mt-8 text-center">
+              <button onClick={handleSpinClick} disabled={isSpinning || isSyncing || !isAppDataLoaded} className="px-10 py-4 text-xl font-bold text-black bg-gradient-to-br from-amber-400 to-yellow-500 rounded-full shadow-lg hover:from-amber-500 hover:to-yellow-600 focus:outline-none focus:ring-4 focus:ring-yellow-400 focus:ring-opacity-70 transition-all duration-300 ease-in-out disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed transform hover:scale-105 disabled:scale-100" style={{boxShadow: '0 8px 20px rgba(255,215,0,0.22)'}}>
+                {isSyncing ? 'Sincronizando...' : isSpinning ? 'Girando...' : 'GIRAR'}
+              </button>
+              {userPhone === ADMIN_PHONE && isAppDataLoaded && (
+                <div className="mt-4 p-4 bg-gray-900 bg-opacity-50 rounded-lg w-full max-w-md">
+                  <div className="flex justify-between items-center mb-3">
+                    <p className="text-amber-400 font-semibold text-lg">
+                      Giros: <span className="text-white text-xl">{currentIndex}</span>
+                    </p>
+                    <button onClick={handleReset} className="px-4 py-2 text-sm font-semibold text-white bg-red-700 rounded-lg shadow-md hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-500 transition-colors duration-300" disabled={isSyncing}>
+                      Resetar Roleta
+                    </button>
+                  </div>
+                   <WinnersList winners={winnersList || []} />
+                </div>
+              )}
+            </footer>
+            <PrizeModal isOpen={!!wonPrize} prize={wonPrize} onClose={() => setWonPrize(null)} userName={userName} userPhone={userPhone} />
+            <InfoModal isOpen={isInfoModalOpen} onClose={() => setIsInfoModalOpen(false)} onSave={handleSaveInfo} />
+          </div>
+        );
+      };
+      // --- END OF APP COMPONENT ---
+
+      // --- RENDER THE APP ---
+      const rootElement = document.getElementById('root');
+      if (!rootElement) {
+        throw new Error("Could not find root element to mount to");
+      }
+      const root = ReactDOM.createRoot(rootElement);
+      root.render(
+        <React.StrictMode>
+          <App />
+        </React.StrictMode>
+      );
+
+    </script>
 </body>
 </html>
+
+
